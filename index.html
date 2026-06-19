@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>파일 읽기 테스트</title>
+</head>
+<body>
+
+    <h1>텍스트 파일 읽기</h1>
+
+    <input type="file" onchange="readFile(event)">
+
+    <pre id="result">파일 내용이 여기에 표시됩니다.</pre>
+
+    <script>
+        function readFile(event) {
+            const file = event.target.files[0];
+
+            if (!file) return;
+
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                document.getElementById("result").innerText = e.target.result;
+            };
+
+            reader.readAsText(file);
+        }
+    </script>
+
+</body>
+</html>
