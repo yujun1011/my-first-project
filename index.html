@@ -11,24 +11,37 @@
 <input type="file" id="files" multiple>
 <br><br>
 
-<input type="text" id="prefix" placeholder="이름 앞부분 입력 (예: character)">
+<input type="text" id="prefix" placeholder="이름 앞부분 (예: character)">
 <br><br>
 
-<button onclick="renameFiles()">변경하기</button>
+<button onclick="renameFiles()">미리보기</button>
+<button onclick="downloadFiles()">다운로드</button>
 
 <h3>결과</h3>
 <div id="result"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
 <script>
+
+let renamedFiles = [];
+
 function renameFiles() {
     const files = document.getElementById('files').files;
     const prefix = document.getElementById('prefix').value;
 
+    renamedFiles = [];
     let resultHTML = '';
 
     for (let i = 0; i < files.length; i++) {
+
         let number = String(i + 1).padStart(3, '0');
         let newName = prefix + "_" + number + getExtension(files[i].name);
+
+        renamedFiles.push({
+            file: files[i],
+            newName: newName
+        });
 
         resultHTML += newName + "<br>";
     }
@@ -39,6 +52,31 @@ function renameFiles() {
 function getExtension(filename) {
     return filename.substring(filename.lastIndexOf('.'));
 }
+
+function downloadFiles() {
+
+    if (renamedFiles.length === 0) {
+        alert("먼저 미리보기를 눌러라");
+        return;
+    }
+
+    const zip = new JSZip();
+    const folder = zip.folder("renamed_files");
+
+    renamedFiles.forEach(item => {
+        folder.file(item.newName, item.file);
+    });
+
+    zip.generateAsync({type:"blob"}).then(function(content) {
+
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(content);
+        link.download = "renamed_files.zip";
+        link.click();
+
+    });
+}
+
 </script>
 
 </body>
