@@ -1,153 +1,146 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>OCR PDF → Excel Extractor</title>
+  <meta charset="UTF-8">
+  <title>파일 이름 자동 정리기</title>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
-<style>
-body {
-    font-family: Arial;
-    background: #0b1220;
-    color: white;
-    margin: 0;
-}
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #111;
+      color: #fff;
+      padding: 40px;
+    }
 
-.container {
-    max-width: 800px;
-    margin: 80px auto;
-    background: #111827;
-    padding: 30px;
-    border-radius: 16px;
-}
+    .box {
+      max-width: 600px;
+      margin: auto;
+      background: #1c1c1c;
+      padding: 20px;
+      border-radius: 10px;
+    }
 
-h1 {
-    font-size: 22px;
-}
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+    }
 
-input, button {
-    width: 100%;
-    padding: 12px;
-    margin-top: 12px;
-    border-radius: 10px;
-    border: none;
-}
+    button {
+      background: #4a7cff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
 
-input {
-    background: #1f2937;
-    color: white;
-}
+    button:hover {
+      background: #2f5fe3;
+    }
 
-button {
-    background: #3b82f6;
-    color: white;
-}
+    .file-list {
+      margin-top: 15px;
+      font-size: 14px;
+      color: #ccc;
+    }
 
-.output {
-    margin-top: 20px;
-    font-size: 13px;
-    color: #93c5fd;
-    white-space: pre-wrap;
-}
-</style>
+    .template-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
 
+    .template-buttons button {
+      flex: 1;
+      background: #333;
+    }
+
+    .template-buttons button:hover {
+      background: #555;
+    }
+
+    .pro-box {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #444;
+      font-size: 13px;
+      color: #aaa;
+    }
+  </style>
 </head>
 
 <body>
 
-<div class="container">
+<div class="box">
+  <h2>파일 이름 자동 정리기</h2>
 
-<h1>OCR PDF → Excel 자동 추출기</h1>
+  <input type="file" id="files" multiple>
 
-<input type="file" id="files" multiple accept="application/pdf" />
+  <input type="text" id="prefix" placeholder="이름 접두사 (예: character)">
 
-<button onclick="process()">OCR 분석 시작</button>
+  <div class="template-buttons">
+    <button onclick="setTemplate('webtoon')">웹툰</button>
+    <button onclick="setTemplate('video')">영상</button>
+    <button onclick="setTemplate('3d')">3D</button>
+  </div>
 
-<div class="output" id="output"></div>
+  <button onclick="processFiles()">ZIP 다운로드</button>
 
+  <div class="pro-box">
+    PRO 기능: 대량 자동 규칙 / PDF 분석 / 템플릿 저장 (준비중)
+  </div>
+
+  <div class="file-list" id="list"></div>
 </div>
 
 <script>
+let selectedFiles = [];
 
-async function pdfToImages(file) {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+document.getElementById('files').addEventListener('change', function(e){
+  selectedFiles = Array.from(e.target.files);
 
-    let images = [];
+  document.getElementById('list').innerHTML =
+    selectedFiles.map((f,i)=>`${f.name} → ${i+1}`).join("<br>");
+});
 
-    for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: 2 });
+function setTemplate(type) {
+  const input = document.getElementById("prefix");
 
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-
-        await page.render({ canvasContext: ctx, viewport }).promise;
-
-        images.push(canvas.toDataURL("image/png"));
-    }
-
-    return images;
+  if(type === "webtoon") input.value = "scene";
+  if(type === "video") input.value = "shot";
+  if(type === "3d") input.value = "asset";
 }
 
-async function ocrImage(img) {
-    const result = await Tesseract.recognize(img, "kor+eng");
-    return result.data.text;
+function autoPrefix(name) {
+  if(name.includes("IMG")) return "scene";
+  if(name.includes("DSC")) return "photo";
+  if(name.includes("render")) return "asset";
+  return "file";
 }
 
-// 간단 데이터 추출
-function parse(text) {
-    const name = text.match(/이름[:\s]*([^\s]+)/);
-    const date = text.match(/\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}/);
-    const money = text.match(/(\d{1,3}(,\d{3})+|\d+)/);
+function processFiles() {
+  if(selectedFiles.length === 0) return;
 
-    return {
-        name: name ? name[1] : "unknown",
-        date: date ? date[0] : "unknown",
-        money: money ? money[0] : "unknown"
-    };
+  const zip = new JSZip();
+
+  selectedFiles.forEach((file, i) => {
+
+    const prefix = autoPrefix(file.name);
+
+    const newName =
+      `${prefix}_${String(i+1).padStart(3,'0')}.${file.name.split('.').pop()}`;
+
+    zip.file(newName, file);
+  });
+
+  zip.generateAsync({type:"blob"}).then(function(content) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(content);
+    a.download = "renamed_files.zip";
+    a.click();
+  });
 }
-
-async function process() {
-
-    const files = document.getElementById("files").files;
-    if (!files.length) return alert("파일 선택");
-
-    let results = [];
-
-    for (let file of files) {
-
-        document.getElementById("output").innerText =
-            "처리중: " + file.name;
-
-        const images = await pdfToImages(file);
-
-        let fullText = "";
-
-        for (let img of images) {
-            const text = await ocrImage(img);
-            fullText += text + "\n";
-        }
-
-        results.push(parse(fullText));
-    }
-
-    const ws = XLSX.utils.json_to_sheet(results);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "data");
-
-    XLSX.writeFile(wb, "ocr_result.xlsx");
-
-    document.getElementById("output").innerText =
-        "완료: OCR Excel 생성됨";
-}
-
 </script>
 
 </body>
