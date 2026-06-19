@@ -1,80 +1,151 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <title>File Renamer</title>
+<meta charset="UTF-8">
+<title>OCR PDF → Excel Extractor</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<style>
+body {
+    font-family: Arial;
+    background: #0b1220;
+    color: white;
+    margin: 0;
+}
+
+.container {
+    max-width: 800px;
+    margin: 80px auto;
+    background: #111827;
+    padding: 30px;
+    border-radius: 16px;
+}
+
+h1 {
+    font-size: 22px;
+}
+
+input, button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 12px;
+    border-radius: 10px;
+    border: none;
+}
+
+input {
+    background: #1f2937;
+    color: white;
+}
+
+button {
+    background: #3b82f6;
+    color: white;
+}
+
+.output {
+    margin-top: 20px;
+    font-size: 13px;
+    color: #93c5fd;
+    white-space: pre-wrap;
+}
+</style>
+
 </head>
+
 <body>
 
-<h2>파일 이름 자동 변경기</h2>
+<div class="container">
 
-<input type="file" id="files" multiple>
-<br><br>
+<h1>OCR PDF → Excel 자동 추출기</h1>
 
-<input type="text" id="prefix" placeholder="이름 앞부분 (예: character)">
-<br><br>
+<input type="file" id="files" multiple accept="application/pdf" />
 
-<button onclick="renameFiles()">미리보기</button>
-<button onclick="downloadFiles()">다운로드</button>
+<button onclick="process()">OCR 분석 시작</button>
 
-<h3>결과</h3>
-<div id="result"></div>
+<div class="output" id="output"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</div>
 
 <script>
 
-let renamedFiles = [];
+async function pdfToImages(file) {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-function renameFiles() {
-    const files = document.getElementById('files').files;
-    const prefix = document.getElementById('prefix').value;
+    let images = [];
 
-    renamedFiles = [];
-    let resultHTML = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 2 });
 
-    for (let i = 0; i < files.length; i++) {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
 
-        let number = String(i + 1).padStart(3, '0');
-        let newName = prefix + "_" + number + getExtension(files[i].name);
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
 
-        renamedFiles.push({
-            file: files[i],
-            newName: newName
-        });
+        await page.render({ canvasContext: ctx, viewport }).promise;
 
-        resultHTML += newName + "<br>";
+        images.push(canvas.toDataURL("image/png"));
     }
 
-    document.getElementById('result').innerHTML = resultHTML;
+    return images;
 }
 
-function getExtension(filename) {
-    return filename.substring(filename.lastIndexOf('.'));
+async function ocrImage(img) {
+    const result = await Tesseract.recognize(img, "kor+eng");
+    return result.data.text;
 }
 
-function downloadFiles() {
+// 간단 데이터 추출
+function parse(text) {
+    const name = text.match(/이름[:\s]*([^\s]+)/);
+    const date = text.match(/\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}/);
+    const money = text.match(/(\d{1,3}(,\d{3})+|\d+)/);
 
-    if (renamedFiles.length === 0) {
-        alert("먼저 미리보기를 눌러라");
-        return;
+    return {
+        name: name ? name[1] : "unknown",
+        date: date ? date[0] : "unknown",
+        money: money ? money[0] : "unknown"
+    };
+}
+
+async function process() {
+
+    const files = document.getElementById("files").files;
+    if (!files.length) return alert("파일 선택");
+
+    let results = [];
+
+    for (let file of files) {
+
+        document.getElementById("output").innerText =
+            "처리중: " + file.name;
+
+        const images = await pdfToImages(file);
+
+        let fullText = "";
+
+        for (let img of images) {
+            const text = await ocrImage(img);
+            fullText += text + "\n";
+        }
+
+        results.push(parse(fullText));
     }
 
-    const zip = new JSZip();
-    const folder = zip.folder("renamed_files");
+    const ws = XLSX.utils.json_to_sheet(results);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "data");
 
-    renamedFiles.forEach(item => {
-        folder.file(item.newName, item.file);
-    });
+    XLSX.writeFile(wb, "ocr_result.xlsx");
 
-    zip.generateAsync({type:"blob"}).then(function(content) {
-
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(content);
-        link.download = "renamed_files.zip";
-        link.click();
-
-    });
+    document.getElementById("output").innerText =
+        "완료: OCR Excel 생성됨";
 }
 
 </script>
