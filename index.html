@@ -1,145 +1,182 @@
 <!DOCTYPE html>
 <html>
+  <button onclick="login()">Google 로그인</button>
+
+<div id="user"></div>
 <head>
-  <meta charset="UTF-8">
-  <title>파일 이름 자동 정리기</title>
+<meta charset="UTF-8">
+<title>File AI Automation SaaS</title>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- ZIP -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
-  <style>
-    body {
-      font-family: sans-serif;
-      background: #111;
-      color: #fff;
-      padding: 40px;
-    }
+<!-- PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-    .box {
-      max-width: 600px;
-      margin: auto;
-      background: #1c1c1c;
-      padding: 20px;
-      border-radius: 10px;
-    }
+<!-- Excel -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-    input, button {
-      width: 100%;
-      padding: 10px;
-      margin-top: 10px;
-    }
+<style>
+body {
+  font-family: sans-serif;
+  background: #0f0f0f;
+  color: white;
+  padding: 40px;
+}
 
-    button {
-      background: #4a7cff;
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
+.box {
+  max-width: 700px;
+  margin: auto;
+  background: #1c1c1c;
+  padding: 20px;
+  border-radius: 12px;
+}
 
-    button:hover {
-      background: #2f5fe3;
-    }
+input, button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+}
 
-    .file-list {
-      margin-top: 15px;
-      font-size: 14px;
-      color: #ccc;
-    }
+button {
+  background: #4a7cff;
+  border: none;
+  color: white;
+  cursor: pointer;
+}
 
-    .template-buttons {
-      display: flex;
-      gap: 10px;
-      margin-top: 10px;
-    }
+button:hover {
+  background: #2d5fe0;
+}
 
-    .template-buttons button {
-      flex: 1;
-      background: #333;
-    }
+.small {
+  font-size: 12px;
+  color: #aaa;
+}
 
-    .template-buttons button:hover {
-      background: #555;
-    }
-
-    .pro-box {
-      margin-top: 20px;
-      padding: 10px;
-      border: 1px solid #444;
-      font-size: 13px;
-      color: #aaa;
-    }
-  </style>
+hr {
+  margin: 20px 0;
+}
+</style>
 </head>
 
 <body>
 
 <div class="box">
-  <h2>파일 이름 자동 정리기</h2>
 
-  <input type="file" id="files" multiple>
+<h2>AI File Automation SaaS (MVP)</h2>
 
-  <input type="text" id="prefix" placeholder="이름 접두사 (예: character)">
+<!-- FILE -->
+<input type="file" id="files" multiple>
 
-  <div class="template-buttons">
-    <button onclick="setTemplate('webtoon')">웹툰</button>
-    <button onclick="setTemplate('video')">영상</button>
-    <button onclick="setTemplate('3d')">3D</button>
-  </div>
+<button onclick="zipFiles()">ZIP 다운로드 (파일 정리)</button>
 
-  <button onclick="processFiles()">ZIP 다운로드</button>
+<hr>
 
-  <div class="pro-box">
-    PRO 기능: 대량 자동 규칙 / PDF 분석 / 템플릿 저장 (준비중)
-  </div>
+<h3>PDF → 텍스트 추출</h3>
+<input type="file" id="pdfFile">
+<button onclick="extractPDF()">PDF 분석</button>
 
-  <div class="file-list" id="list"></div>
+<pre id="pdfResult"></pre>
+
+<button onclick="exportExcel()">Excel 다운로드</button>
+
+<hr>
+
+<h3>히스토리</h3>
+<div id="history"></div>
+
 </div>
 
 <script>
+
 let selectedFiles = [];
+let pdfData = [];
 
-document.getElementById('files').addEventListener('change', function(e){
-  selectedFiles = Array.from(e.target.files);
-
-  document.getElementById('list').innerHTML =
-    selectedFiles.map((f,i)=>`${f.name} → ${i+1}`).join("<br>");
+document.getElementById("files").addEventListener("change", e=>{
+  selectedFiles = [...e.target.files];
 });
 
-function setTemplate(type) {
-  const input = document.getElementById("prefix");
-
-  if(type === "webtoon") input.value = "scene";
-  if(type === "video") input.value = "shot";
-  if(type === "3d") input.value = "asset";
-}
-
-function autoPrefix(name) {
-  if(name.includes("IMG")) return "scene";
-  if(name.includes("DSC")) return "photo";
-  if(name.includes("render")) return "asset";
-  return "file";
-}
-
-function processFiles() {
-  if(selectedFiles.length === 0) return;
-
+function zipFiles(){
   const zip = new JSZip();
 
-  selectedFiles.forEach((file, i) => {
-
-    const prefix = autoPrefix(file.name);
-
-    const newName =
-      `${prefix}_${String(i+1).padStart(3,'0')}.${file.name.split('.').pop()}`;
-
+  selectedFiles.forEach((file,i)=>{
+    const newName = `file_${String(i+1).padStart(3,'0')}.${file.name.split('.').pop()}`;
     zip.file(newName, file);
   });
 
-  zip.generateAsync({type:"blob"}).then(function(content) {
+  zip.generateAsync({type:"blob"}).then(content=>{
     const a = document.createElement("a");
     a.href = URL.createObjectURL(content);
-    a.download = "renamed_files.zip";
+    a.download = "files.zip";
     a.click();
   });
+}
+
+/* =========================
+   PDF → TEXT
+========================= */
+
+async function extractPDF(){
+  const file = document.getElementById("pdfFile").files[0];
+  if(!file) return;
+
+  const reader = new FileReader();
+
+  reader.onload = async function(){
+    const typedarray = new Uint8Array(this.result);
+
+    const pdf = await pdfjsLib.getDocument(typedarray).promise;
+
+    let text = "";
+
+    for(let i=1;i<=pdf.numPages;i++){
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(item=>item.str).join(" ") + "\n";
+    }
+
+    document.getElementById("pdfResult").innerText = text;
+
+    pdfData = [
+      { type:"pdf_text", content:text }
+    ];
+  }
+
+  reader.readAsArrayBuffer(file);
+}
+
+/* =========================
+   EXCEL EXPORT
+========================= */
+
+function exportExcel(){
+  if(pdfData.length === 0) return;
+
+  const ws = XLSX.utils.json_to_sheet(pdfData);
+  const wb = XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(wb, ws, "result");
+
+  XLSX.writeFile(wb, "result.xlsx");
+}
+
+/* =========================
+   HISTORY (simple)
+========================= */
+
+function saveHistory(type){
+  let history = JSON.parse(localStorage.getItem("history") || "[]");
+
+  history.push({
+    time: Date.now(),
+    type
+  });
+
+  localStorage.setItem("history", JSON.stringify(history));
+}
+function login() {
+  alert("로그인 버튼 눌림");
 }
 </script>
 
