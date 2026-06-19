@@ -1,31 +1,45 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>파일 읽기 테스트</title>
+    <meta charset="UTF-8">
+    <title>File Renamer</title>
 </head>
 <body>
 
-    <h1>텍스트 파일 읽기</h1>
+<h2>파일 이름 자동 변경기</h2>
 
-    <input type="file" onchange="readFile(event)">
+<input type="file" id="files" multiple>
+<br><br>
 
-    <pre id="result">파일 내용이 여기에 표시됩니다.</pre>
+<input type="text" id="prefix" placeholder="이름 앞부분 입력 (예: character)">
+<br><br>
 
-    <script>
-        function readFile(event) {
-            const file = event.target.files[0];
+<button onclick="renameFiles()">변경하기</button>
 
-            if (!file) return;
+<h3>결과</h3>
+<div id="result"></div>
 
-            const reader = new FileReader();
+<script>
+function renameFiles() {
+    const files = document.getElementById('files').files;
+    const prefix = document.getElementById('prefix').value;
 
-            reader.onload = function(e) {
-                document.getElementById("result").innerText = e.target.result;
-            };
+    let resultHTML = '';
 
-            reader.readAsText(file);
-        }
-    </script>
+    for (let i = 0; i < files.length; i++) {
+        let number = String(i + 1).padStart(3, '0');
+        let newName = prefix + "_" + number + getExtension(files[i].name);
+
+        resultHTML += newName + "<br>";
+    }
+
+    document.getElementById('result').innerHTML = resultHTML;
+}
+
+function getExtension(filename) {
+    return filename.substring(filename.lastIndexOf('.'));
+}
+</script>
 
 </body>
 </html>
